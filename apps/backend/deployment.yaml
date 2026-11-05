@@ -1,0 +1,140 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# api-backend — le workload qui détient les secrets les plus sensibles
+#
+# Deux décisions structurantes, toutes deux exigées par le plan (partie 2) :
+#
+# 1. INJECTION PAR VOLUME, JAMAIS PAR VARIABLE D'ENVIRONNEMENT
+#    - envFrom: ne figure nulle part dans ce fichier. Pourquoi :
+#        * une variable d'env est visible dans `kubectl describe pod` (au moins
+#          son nom), dans /proc/<pid>/environ, dans les crash dumps, et elle
+#          est recopiée dans les logs si l'app sérialise son environnement ;
+#        * elle n'est PAS mise à jour après rotation (l'env est figé au
+#          démarrage) -> redémarrage obligatoire ;
+#        * le secret est hérité par tous les processus enfants.
+#    - un volume monté :
+#        * n'est visible que par le processus qui ouvre le fichier ;
+#        * est mis à jour par le kubelet quand le Secret change -> rotation
+#          sans redémarrage (c'est ce que démontre la démo 4).
+#
+# 2. VOLUMES EN readOnly + items explicites
+#    `items` limite le volume au strict nécessaire : le contenu du Secret
+#    n'est pas exposé intégralement, seulement les clés utiles, au chemin voulu.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-backend
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: api-backend
+    app.kubernetes.io/part-of: secrets-lifecycle
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api-backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api-backend
+        app.kubernetes.io/part-of: secrets-lifecycle
+    spec:
+      serviceAccountName: sa-backend     # identité nominative (RBAC partie 3)
+      automountServiceAccountToken: true # requis par la démo 2 (appel API)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: secrets-lab/api-backend:1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # Uniquement de la configuration NON sensible.
+            - name: SECRETS_DIR
+              value: /etc/app-secrets
+            - name: APP_PORT
+              value: "8080"
+            - name: LOG_LEVEL
+              value: info
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # Le secret DB : monté en lecture seule, clés choisies une par une
+            - name: db-credentials
+              mountPath: /etc/app-secrets/db-credentials
+              readOnly: true
+            # La clé JWT : même traitement
+            - name: jwt-key
+              mountPath: /etc/app-secrets/jwt-key
+              readOnly: true
+            # Répertoires inscriptibles minimaux (readOnlyRootFilesystem: true)
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: db-credentials
+          secret:
+            secretName: db-credentials   # créé par ESO, jamais commité
+            defaultMode: 0400
+            items:
+              - key: username
+                path: username
+              - key: password
+                path: password
+              - key: host
+                path: host
+              - key: port
+                path: port
+              - key: database
+                path: database
+        - name: jwt-key
+          secret:
+            secretName: jwt-key
+            defaultMode: 0400
+            items:
+              - key: signing-key
+                path: signing-key
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-backend
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: api-backend
+spec:
+  selector:
+    app.kubernetes.io/name: api-backend
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

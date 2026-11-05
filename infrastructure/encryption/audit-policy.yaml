@@ -1,0 +1,57 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Politique d'audit : on trace au maximum tout ce qui touche aux Secrets.
+#
+# Objectif pédagogique (parties 4 et 6) : pouvoir répondre à « qui a lu
+# db-credentials à 14h32 ? ». Sans audit, un secret volé l'est silencieusement.
+#
+# Niveaux : None < Metadata < Request < RequestResponse
+#   - RequestResponse journalise le corps de la requête => ici TOUT est masqué
+#     par Kubernetes pour les Secrets (la valeur n'apparaît jamais en clair
+#     dans le log, seuls les noms et l'identité du demandeur sont visibles).
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages:
+  - RequestReceived          # évite le doublon d'événement à l'entrée
+rules:
+  # 1. Toute opération sur un Secret : niveau Request, identité complète
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["secrets"]
+    omitStages: []
+
+  # 2. Accès au ServiceAccount token et aux ConfigMaps sensibles
+  - level: Request
+    resources:
+      - group: ""
+        resources: ["serviceaccounts", "serviceaccounts/token", "serviceaccounts/status"]
+
+  # 3. Authentification / autorisation : on veut voir les refus (Forbidden)
+  - level: Metadata
+    verbs: ["create", "update", "patch", "delete"]
+    resources:
+      - group: "authorization.k8s.io"
+        resources: ["subjectaccessreviews", "selfsubjectaccessreviews"]
+      - group: "authentication.k8s.io"
+        resources: ["tokenreviews"]
+
+  # 4. Vault et ESO : leurs écritures dans les Secrets sont déjà couvertes (1)
+  #    On ajoute les événements de contrôle des CRD pour la traçabilité GitOps
+  - level: Metadata
+    resources:
+      - group: "external-secrets.io"
+        resources: ["externalsecrets", "secretstores", "clustersecretstores"]
+
+  # 5. Bruit de fond : on ne journalise pas le heartbeat des pods
+  - level: None
+    users: ["kubelet"]
+    verbs: ["get", "list", "watch"]
+    resources:
+      - group: ""
+        resources: ["nodes", "nodes/status"]
+
+  # 6. Défaut : métadonnées seulement (volume de logs maîtrisé)
+  - level: Metadata
+    omitStages:
+      - RequestReceived

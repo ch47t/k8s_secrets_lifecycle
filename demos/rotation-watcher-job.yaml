@@ -1,0 +1,75 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Job « watcher » de la démo 4.
+#
+# Il monte db-credentials en volume (comme le backend) et imprime l'empreinte
+# SHA-256 du mot de passe toutes les 10 secondes pendant 2 minutes. On voit
+# littéralement le fichier changer sans que le Pod soit recréé :
+# même nom de Pod, même UID de conteneur, nouvelle valeur.
+#
+# À lancer AVANT la rotation :
+#   kubectl delete job -n backend rotation-watcher --ignore-not-found
+#   kubectl apply -f demos/rotation-watcher-job.yaml
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: rotation-watcher
+  namespace: backend
+  labels:
+    app.kubernetes.io/name: rotation-watcher
+    app.kubernetes.io/part-of: secrets-lifecycle
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 1800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: rotation-watcher
+    spec:
+      serviceAccountName: sa-backend
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: watcher
+          image: alpine:3.20
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - |
+              echo "pod=$HOSTNAME  démarrage=$(date -u +%FT%TZ)"
+              i=0
+              while [ $i -lt 24 ]; do
+                fp=$(sha256sum /secrets/db-credentials/password | cut -c1-12)
+                mtime=$(date -r /secrets/db-credentials/password -u +%FT%TZ)
+                echo "$(date -u +%T)  empreinte=$fp  mtime_du_fichier=$mtime"
+                i=$((i+1))
+                sleep 10
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: db-credentials
+              mountPath: /secrets/db-credentials
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
+      volumes:
+        - name: db-credentials
+          secret:
+            secretName: db-credentials
+            defaultMode: 0400

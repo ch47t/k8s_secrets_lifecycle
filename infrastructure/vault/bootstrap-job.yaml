@@ -1,0 +1,75 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Job de bootstrap de Vault
+#
+# Idempotent : peut être relancé (kubectl delete job -n vault vault-bootstrap).
+#
+# Le Pod tourne avec le ServiceAccount vault-auth (droits = auth-delegator
+# uniquement, cf. vault-auth-rbac.yaml) et projette un token d'audience
+# "vault" : c'est ce token que Vault présentera à l'API via TokenReview.
+#
+# Les valeurs sensibles arrivent par `envFrom` depuis le Secret
+# `vault-bootstrap-params`, créé hors Git par le script de déploiement.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: vault-bootstrap
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault-bootstrap
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault-bootstrap
+    spec:
+      serviceAccountName: vault-auth     # porte system:auth-delegator
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: bootstrap
+          image: hashicorp/vault:1.18
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/vault/scripts/bootstrap.sh"]
+          envFrom:
+            - secretRef:
+                name: vault-bootstrap-params   # créé hors Git
+          env:
+            - name: VAULT_ADDR
+              value: http://vault.vault.svc.cluster.local:8200
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: script
+              mountPath: /vault/scripts
+              readOnly: true
+            - name: policy
+              mountPath: /vault/policy
+              readOnly: true
+            # NB : le device d'audit est activé côté SERVEUR Vault (vault-dev.yaml
+            # monte déjà /vault/audit) ; ce Job ne fait que l'activer via l'API.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+      volumes:
+        - name: script
+          configMap:
+            name: vault-bootstrap-script
+            defaultMode: 0500
+        - name: policy
+          configMap:
+            name: vault-eso-policy
+            defaultMode: 0400

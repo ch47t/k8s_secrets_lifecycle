@@ -1,0 +1,108 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Script de bootstrap de Vault, exécuté dans un Job après le démarrage de Vault.
+#
+# Ce script fait le travail qu'un humain ferait à la main en production
+# (ou qu'un pipeline Terraform/Ansible ferait de façon idempotente).
+#
+# Toutes les valeurs sensibles viennent de variables d'environnement injectées
+# depuis un Secret Kubernetes créé HORS Git par scripts/01-deploy-vault-eso.sh.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-bootstrap-script
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault-bootstrap
+data:
+  bootstrap.sh: |
+    #!/bin/sh
+    set -eu
+
+    VAULT_ADDR="http://vault.vault.svc.cluster.local:8200"
+    export VAULT_ADDR
+
+    echo "==> Attente de Vault..."
+    i=0
+    until vault status >/dev/null 2>&1; do
+      i=$((i+1)); [ "$i" -gt 60 ] && { echo "Vault indisponible"; exit 1; }
+      sleep 2
+    done
+
+    echo "==> Authentification (token root de dev)"
+    vault login -no-print "$VAULT_ROOT_TOKEN" >/dev/null
+
+    # ──────────────────────────────────────────────────────────────── audit    # Active un device d'audit fichier : chaque lecture de secret est tracée.
+    echo "==> Activation de l'audit device"
+    vault audit enable -path=file file file_path=/vault/audit/audit.log || true
+
+    # ─────────────────────────────────────────────────────── kv v2 (secrets)    echo "==> Moteur KV v2 sur secret/"
+    vault secrets enable -path=secret -version=2 kv >/dev/null 2>&1 || true
+
+    # ───────────────────────────────────────────────── moteur database PG    echo "==> Moteur database + connexion PostgreSQL"
+    vault secrets enable database >/dev/null 2>&1 || true
+
+    PG_HOST="postgres.database.svc.cluster.local"
+    vault write database/config/postgresql \
+      plugin_name=postgresql-database-plugin \
+      allowed_roles="app" \
+      connection_url="postgresql://{{username}}:{{password}}@${PG_HOST}:5432/appdb?sslmode=disable" \
+      username="${PG_APP_USER}" \
+      password="${PG_APP_PASSWORD}"
+
+    # Rôle de dynamic secrets : Vault crée un utilisateur PostgreSQL jetable
+    echo "==> Rôle database/creds/app (TTL 5 min, renouvelable 15 min)"
+    vault write database/roles/app \
+      db_name=postgresql \
+      creation_statements="CREATE ROLE \"{{name}}\" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}'; GRANT CONNECT ON DATABASE appdb TO \"{{name}}\"; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO \"{{name}}\"; " \
+      revocation_statements="DROP ROLE IF EXISTS \"{{name}}\"; " \
+      default_ttl="5m" \
+      max_ttl="15m"
+
+    # ─────────────────────────────────────────────────── seed des secrets KV    # Ce sont les secrets « statiques » de la matrice (partie 1).
+    # Écrits ici depuis des variables, donc jamais présents dans Git.
+    echo "==> Alimentation des secrets dans Vault (Vault = source de vérité)"
+    vault kv put secret/backend/db-credentials \
+      username="${PG_APP_USER}" \
+      password="${PG_APP_PASSWORD}" \
+      host="${PG_HOST}" \
+      port="5432" \
+      database="appdb" >/dev/null
+
+    vault kv put secret/database/db-credentials \
+      username="${PG_APP_USER}" \
+      password="${PG_APP_PASSWORD}" \
+      host="${PG_HOST}" \
+      port="5432" \
+      database="appdb" >/dev/null
+
+    vault kv put secret/backend/jwt-key \
+      signing-key="${JWT_SIGNING_KEY}" \
+      algorithm="HS256" \
+      rotatable="true" >/dev/null
+
+    vault kv put secret/backend/external-api-key \
+      value="${EXTERNAL_API_KEY}" \
+      provider="partner-api" >/dev/null
+
+    # ─────────────────────────────────────── politique + role K8s pour ESO    echo "==> Politique et montage d'authentification Kubernetes"
+    vault policy write eso-policy /vault/policy/eso-policy.hcl
+
+    vault auth enable kubernetes >/dev/null 2>&1 || true
+    vault write auth/kubernetes/config \
+      kubernetes_host="https://kubernetes.default.svc.cluster.local:443" \
+      token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+      kubernetes_ca_cert="$(cat /var/run/secrets/kubernetes.io/serviceaccount/ca.crt)" \
+      issuer="https://kubernetes.default.svc.cluster.local"
+
+    vault write auth/kubernetes/role/eso \
+      bound_service_account_names="sa-eso" \
+      bound_service_account_namespaces="external-secrets" \
+      bound_audiences="vault" \
+      audience="vault" \
+      token_policies="eso-policy" \
+      token_ttl="20m" \
+      token_max_ttl="1h"
+
+    echo "==> Bootstrap terminé"
+    vault secrets list

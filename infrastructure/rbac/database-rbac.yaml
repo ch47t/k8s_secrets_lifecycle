@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# RBAC de la base de données
+#
+# PostgreSQL n'a besoin QUE de son propre mot de passe. Il n'a aucune raison
+# de lire la clé JWT ni la clé API externe : c'est la traduction concrète du
+# principe « un workload ne reçoit que les secrets dont il a besoin ».
+#
+# NB : PostgreSQL consomme le secret via un volume monté (kubelet), donc ce
+# Role ne sert qu'en cas de besoin d'appel API (ex. sidecar de rotation
+# qui relit le secret). Il est fourni ici pour la complétude de la matrice.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader-database
+  namespace: database
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      - db-credentials
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-reader-database
+  namespace: database
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+subjects:
+  - kind: ServiceAccount
+    name: sa-database
+    namespace: database
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-reader-database

@@ -1,0 +1,44 @@
+# ==============================================================================
+# Objectif de ce fichier : rendre structurellement impossible le commit d'un
+# secret. Ce n'est pas de la cosmétique — c'est un contrôle de sécurité.
+# ==============================================================================
+
+# 1. Clé de chiffrement etcd et configuration générée
+#    La committer = publier la clé qui protège TOUS les secrets du cluster.
+infrastructure/encryption/encryption-config.yaml
+
+# 2. Config kind générée (contient des chemins absolus, pas de secret, mais
+#    elle est régénérable : inutile de la versionner)
+clusters/kind-config.yaml
+clusters/kind-config-calico.yaml
+
+# 3. Tout ce qui pourrait contenir un credential par accident
+*.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+kubeconfig*
+*.kubeconfig
+credentials*
+*secret-values*.yaml
+*.tfstate
+*.tfstate.backup
+
+# 4. Artefacts de démonstration
+/tmp/
+demos/*.out
+gitleaks-report.json
+
+# 5. Outils téléchargés localement (binaires, pas du code)
+tools/
+
+# 6. Divers
+.DS_Store
+*.log
+__pycache__/
+*.pyc
+.venv/

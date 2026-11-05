@@ -1,0 +1,12 @@
+# Exemple à but pédagogique uniquement — clé factice, jamais utilisable.
+# Le vrai fichier est généré par scripts/00-create-cluster.sh et gitignoré.
+apiVersion: apiserver.config.k8s.io/v1
+kind: EncryptionConfiguration
+resources:
+  - resources: ["secrets", "configmaps"]
+    providers:
+      - aescbc:
+          keys:
+            - name: key1
+              secret: c2VjcmV0LWxhYi1kZW1vLWtleS0zMi1ieXRlcy1sb25nISE=
+      - identity: {}

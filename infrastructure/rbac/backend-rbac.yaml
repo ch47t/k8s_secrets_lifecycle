@@ -1,0 +1,46 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# RBAC du backend — le moindre privilège appliqué aux secrets
+#
+# Le point le plus important de ce fichier : resourceNames.
+# Sans resourceNames, `get` sur secrets = get sur TOUS les secrets du namespace.
+# Avec resourceNames, `get` ne s'applique qu'aux objets nommés.
+#
+# On remarquera l'absence volontaire de :
+#   - verbs: ["list"]  -> list n'est PAS filtrable par resourceNames ; accorder
+#                         list revient à exposer tous les noms de secrets
+#                         (énumération) et à contourner tout le Role.
+#   - verbs: ["watch"] -> interception des changements en temps réel
+#   - apiGroups: ["apps", ...] ou toute autre ressource : le backend n'a
+#                         aucune raison de modifier le cluster.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader-backend
+  namespace: backend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    # Nommage explicite : c'est CE bloc qui limite le blast radius.
+    resourceNames:
+      - db-credentials
+      - jwt-key
+    verbs: ["get"]        # get uniquement : ni list, ni watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-reader-backend
+  namespace: backend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+subjects:
+  - kind: ServiceAccount
+    name: sa-backend
+    namespace: backend          # namespace explicite : jamais implicite
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-reader-backend

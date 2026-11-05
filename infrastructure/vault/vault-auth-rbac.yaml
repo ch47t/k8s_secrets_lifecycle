@@ -1,0 +1,32 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Prérequis de l'auth Kubernetes dans Vault
+#
+# Vault doit pouvoir valider un JWT projeté par un Pod. Il le fait via l'API
+# Kubernetes (TokenReview). Vault a donc besoin d'un ServiceAccount capable
+# de créer des tokenreviews : c'est exactement le rôle `system:auth-delegator`.
+#
+# ⚠️  Ne JAMAIS élargir ce ClusterRole : il se limite à auth-delegator, rien
+#     d'autre. Un `cluster-admin` ici annulerait tout le bénéfice du RBAC.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auth
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auth-delegator
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault-auth
+    namespace: vault

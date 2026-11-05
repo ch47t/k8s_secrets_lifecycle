@@ -1,0 +1,71 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Isolation par namespace + Pod Security Standards
+#
+# Trois namespaces applicatifs (frontend / backend / database) + deux
+# namespaces plateforme (vault, external-secrets) + un namespace de test
+# (security) qui héberge les Pods « attaquant » des démonstrations.
+#
+# Les labels pod-security.kubernetes.io/* appliquent le profil `restricted` :
+#   - pas de conteneur privilégié
+#   - runAsNonRoot obligatoire
+#   - capabilities drop ALL
+#   - seccompProfile RuntimeDefault
+# Un secret volé ne sert à rien si le Pod qui le vole tourne déjà root avec
+# la socket Docker montée. C'est de la défense en profondeur, pas du RBAC.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: frontend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: backend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: database
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vault
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: baseline
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: external-secrets
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: security
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/warn: restricted

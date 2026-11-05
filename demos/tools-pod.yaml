@@ -1,0 +1,39 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Pod « outils » : utilisé par les démos réseau (nc, curl, wget, dig).
+#
+# Il tourne avec sa-intrus dans le namespace `security`. Il sert à prouver,
+# par la preuve négative, que le backend ne peut pas joindre Vault (démo 5)
+# et que le frontend ne peut rien lire (démo 1, variante réseau).
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Pod
+metadata:
+  name: tools
+  namespace: security
+  labels:
+    app.kubernetes.io/name: tools
+    app.kubernetes.io/part-of: secrets-lifecycle
+spec:
+  serviceAccountName: sa-intrus
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: tools
+      image: alpine:3.20
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 16Mi
+        limits:
+          memory: 64Mi

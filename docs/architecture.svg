@@ -1,0 +1,222 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 980" width="1240" height="980" font-family="ui-sans-serif, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="mkSync" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="mkRbac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="mkNet" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#a78bfa"/>
+    </marker>
+    <marker id="mkDeny" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#ef4444"/>
+    </marker>
+    <marker id="mkVol" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4ade80"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#0e1626"/>
+    </linearGradient>
+    <style>
+      .title { fill:#f8fafc; font-size:21px; font-weight:700; letter-spacing:-.4px; }
+      .subtitle { fill:#8fa2ba; font-size:12.5px; }
+      .ns { fill:#0d1727; stroke:#2b3b53; stroke-width:1.4; }
+      .card { stroke-width:1.4; }
+      .card-blue { fill:#10233c; stroke:#2f6fd0; }
+      .card-violet { fill:#181141; stroke:#7c3aed; }
+      .card-gold { fill:#1d1a10; stroke:#a16207; }
+      .card-red { fill:#1e1119; stroke:#b91c1c; stroke-dasharray:6 4; }
+      .card-grey { fill:#111b2b; stroke:#334155; }
+      .ns-title { fill:#f1f5f9; font-size:13.5px; font-weight:700; }
+      .ns-sub { fill:#7186a0; font-size:10.5px; }
+      .h { fill:#f1f5f9; font-size:12.5px; font-weight:700; }
+      .t { fill:#a9bacd; font-size:11px; }
+      .mono { fill:#7dd3fc; font-size:10.5px; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .good { fill:#4ade80; font-size:10.5px; font-weight:600; }
+      .bad { fill:#f87171; font-size:10.5px; font-weight:600; }
+      .warn { fill:#fbbf24; font-size:10.5px; font-weight:600; }
+      .lbl { fill:#cbd5e1; font-size:10.5px; }
+      .lbl-sync { fill:#7dd3fc; font-size:10.5px; font-weight:600; }
+      .lbl-deny { fill:#fca5a5; font-size:10.5px; font-weight:600; }
+      .lbl-rbac { fill:#fbbf24; font-size:10.5px; font-weight:600; }
+      .lbl-net { fill:#c4b5fd; font-size:10.5px; font-weight:600; }
+      .lbl-vol { fill:#86efac; font-size:10.5px; font-weight:600; }
+      .legend-t { fill:#b9c8da; font-size:11px; }
+    </style>
+  </defs>
+
+  <rect width="1240" height="980" fill="url(#bg)"/>
+
+  <!-- ═══════════ EN-TÊTE ═══════════ -->
+  <text x="40" y="44" class="title">Sécurisation du cycle de vie des secrets dans Kubernetes</text>
+  <text x="40" y="66" class="subtitle">Mini-projet 6 · 3 namespaces isolés · RBAC nominatif · Vault source de vérité · External Secrets Operator comme pont · chiffrement etcd</text>
+
+  <!-- ═══════════ PLAN DE CONTRÔLE ═══════════ -->
+  <rect x="390" y="88" width="810" height="146" rx="12" class="card card-gold"/>
+  <text x="410" y="114" class="ns-title">Plan de contrôle Kubernetes</text>
+  <text x="410" y="132" class="ns-sub">API server · RBAC · audit log · etcd</text>
+
+  <rect x="408" y="146" width="248" height="72" rx="8" class="card card-grey"/>
+  <text x="424" y="167" class="h">etcd — chiffrement au repos</text>
+  <text x="424" y="186" class="mono">k8s:enc:aescbc:v1:key1</text>
+  <text x="424" y="204" class="t">clé aescbc conservée hors cluster</text>
+
+  <rect x="672" y="146" width="248" height="72" rx="8" class="card card-grey"/>
+  <text x="688" y="167" class="h">Audit policy</text>
+  <text x="688" y="186" class="t">niveau Request sur secrets</text>
+  <text x="688" y="204" class="t">qui · quel secret · quand</text>
+
+  <rect x="936" y="146" width="248" height="72" rx="8" class="card card-grey"/>
+  <text x="952" y="167" class="h">RBAC</text>
+  <text x="952" y="186" class="t">Role + resourceNames</text>
+  <text x="952" y="204" class="t">get uniquement — jamais list</text>
+
+  <!-- ═══════════ NAMESPACE FRONTEND ═══════════ -->
+  <rect x="40" y="270" width="290" height="240" rx="12" class="ns"/>
+  <text x="58" y="296" class="ns-title">namespace : frontend</text>
+  <text x="58" y="314" class="ns-sub">Pod Security Standards : restricted</text>
+
+  <rect x="56" y="330" width="258" height="112" rx="8" class="card card-grey"/>
+  <text x="72" y="352" class="h">Pod frontend</text>
+  <text x="72" y="371" class="t">nginx-unprivileged :8080</text>
+  <text x="72" y="390" class="t">ServiceAccount : sa-frontend</text>
+  <text x="72" y="411" class="good">• aucun secret monté</text>
+  <text x="72" y="430" class="good">• aucun token d'API</text>
+
+  <text x="58" y="468" class="t">Ne parle qu'à l'API backend,</text>
+  <text x="58" y="486" class="t">via un Service (proxy nginx).</text>
+
+  <!-- ═══════════ NAMESPACE BACKEND ═══════════ -->
+  <rect x="390" y="270" width="310" height="240" rx="12" class="ns"/>
+  <text x="408" y="296" class="ns-title">namespace : backend</text>
+  <text x="408" y="314" class="ns-sub">Pod Security Standards : restricted</text>
+
+  <rect x="406" y="330" width="278" height="118" rx="8" class="card card-blue"/>
+  <text x="422" y="352" class="h">Pod api-backend</text>
+  <text x="422" y="371" class="t">ServiceAccount : sa-backend</text>
+  <text x="422" y="390" class="t">get nominatif sur 2 secrets</text>
+  <text x="422" y="409" class="t">secrets lus en volume, mode 0400</text>
+  <text x="422" y="428" class="mono">/etc/app-secrets/…</text>
+  <text x="422" y="444" class="warn">rotation à chaud · 0 redémarrage</text>
+
+  <rect x="406" y="456" width="132" height="50" rx="7" class="card card-grey"/>
+  <text x="418" y="472" class="h">Secret</text>
+  <text x="418" y="487" class="mono">db-credentials</text>
+  <text x="418" y="501" class="lbl-vol">→ volume monté</text>
+
+  <rect x="552" y="456" width="132" height="50" rx="7" class="card card-grey"/>
+  <text x="564" y="472" class="h">Secret</text>
+  <text x="564" y="487" class="mono">jwt-key</text>
+  <text x="564" y="501" class="lbl-vol">→ volume monté</text>
+
+  <!-- ═══════════ NAMESPACE DATABASE ═══════════ -->
+  <rect x="760" y="270" width="310" height="240" rx="12" class="ns"/>
+  <text x="778" y="296" class="ns-title">namespace : database</text>
+  <text x="778" y="314" class="ns-sub">Pod Security Standards : restricted</text>
+
+  <rect x="776" y="330" width="278" height="118" rx="8" class="card card-grey"/>
+  <text x="792" y="352" class="h">StatefulSet postgres</text>
+  <text x="792" y="371" class="t">ServiceAccount : sa-database</text>
+  <text x="792" y="390" class="mono">POSTGRES_PASSWORD ← secretKeyRef</text>
+  <text x="792" y="409" class="t">seul secret lu : db-credentials</text>
+  <text x="792" y="428" class="t">(env assumé : PG ne relit pas</text>
+  <text x="792" y="444" class="t">un fichier à chaud)</text>
+
+  <rect x="776" y="456" width="278" height="50" rx="7" class="card card-grey"/>
+  <text x="792" y="472" class="h">Secret db-credentials</text>
+  <text x="792" y="487" class="mono">synchro ESO · 30 s</text>
+  <text x="792" y="501" class="warn">→ variable d'env (limite assumée)</text>
+
+  <!-- ═══════════ VAULT ═══════════ -->
+  <rect x="40" y="560" width="320" height="200" rx="12" class="card card-blue"/>
+  <text x="60" y="586" class="ns-title">HashiCorp Vault</text>
+  <text x="60" y="604" class="ns-sub">namespace : vault — source de vérité</text>
+  <text x="60" y="630" class="t">KV v2 : secret/backend, secret/database</text>
+  <text x="60" y="649" class="t">database/creds/app — TTL 5 min</text>
+  <text x="60" y="668" class="t">policy eso-policy : lecture seule</text>
+  <text x="60" y="687" class="t">role auth/kubernetes/eso → sa-eso</text>
+  <text x="60" y="706" class="t">audit device fichier activé</text>
+  <text x="60" y="728" class="warn">mode dev (lab) : mémoire, scellé auto</text>
+  <text x="60" y="746" class="t">en production : HA, TLS, auto-unseal KMS</text>
+
+  <!-- ═══════════ ESO ═══════════ -->
+  <rect x="420" y="560" width="320" height="200" rx="12" class="card card-violet"/>
+  <text x="440" y="586" class="ns-title">External Secrets Operator</text>
+  <text x="440" y="604" class="ns-sub">namespace : external-secrets · sa-eso</text>
+  <text x="440" y="630" class="t">ClusterSecretStore vault-backend</text>
+  <text x="440" y="649" class="mono">conditions: [backend, database]</text>
+  <text x="440" y="668" class="t">refreshInterval : 30 s</text>
+  <text x="440" y="687" class="t">auth K8s : JWT projeté (audience vault)</text>
+  <text x="440" y="706" class="t">écrit les Secrets K8s cibles</text>
+  <text x="440" y="728" class="good">ne peut pas écrire dans Vault</text>
+
+  <!-- ═══════════ POD INTRUS ═══════════ -->
+  <rect x="800" y="560" width="270" height="150" rx="12" class="card card-red"/>
+  <text x="818" y="586" class="ns-title" fill="#fca5a5">Pod « intrus » — démo 1</text>
+  <text x="818" y="604" class="ns-sub">namespace : security · sa-intrus</text>
+  <text x="818" y="628" class="t">token d'API valide, aucun Role</text>
+  <text x="818" y="647" class="t">kubectl get secret →</text>
+  <text x="818" y="670" class="bad" font-size="13">403 Forbidden</text>
+  <text x="818" y="692" class="t">ni list · ni cross-namespace</text>
+
+  <!-- ═══════════ LÉGENDE ═══════════ -->
+  <rect x="40" y="790" width="700" height="110" rx="12" class="card card-grey"/>
+  <text x="60" y="814" class="ns-title">Légende</text>
+  <line x1="60" y1="836" x2="104" y2="836" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mkSync)"/>
+  <text x="116" y="840" class="legend-t">synchronisation de secret : Vault → ESO → Secret K8s</text>
+  <line x1="60" y1="860" x2="104" y2="860" stroke="#a78bfa" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#mkNet)"/>
+  <text x="116" y="864" class="legend-t">flux réseau autorisé par NetworkPolicy</text>
+  <line x1="60" y1="884" x2="104" y2="884" stroke="#f59e0b" stroke-width="2" stroke-dasharray="10 4" marker-end="url(#mkRbac)"/>
+  <text x="116" y="888" class="legend-t">autorisation RBAC nominative (get nommé)</text>
+  <line x1="420" y1="836" x2="464" y2="836" stroke="#4ade80" stroke-width="2" marker-end="url(#mkVol)"/>
+  <text x="476" y="840" class="legend-t">secret livré par volume monté (kubelet)</text>
+  <line x1="420" y1="860" x2="464" y2="860" stroke="#ef4444" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#mkDeny)"/>
+  <text x="476" y="864" class="legend-t">chemin refusé (RBAC ou réseau)</text>
+
+  <!-- ═══════════ BLAST RADIUS ═══════════ -->
+  <rect x="760" y="790" width="440" height="110" rx="12" class="card card-red"/>
+  <text x="780" y="814" class="ns-title" fill="#fca5a5">Blast radius d'un Pod backend compromis</text>
+  <text x="780" y="836" class="t">• secrets accessibles : les 2 nommés (db-credentials, jwt-key)</text>
+  <text x="780" y="854" class="t">• autres namespaces : non   • modifier le cluster : non</text>
+  <text x="780" y="872" class="t">• contacter Vault : non (NetworkPolicy)   • lire ses volumes : oui</text>
+  <text x="780" y="890" class="bad">limite résiduelle : le Pod lit ce qu'il doit utiliser</text>
+
+  <!-- ═══════════ FLUX ═══════════ -->
+  <!-- frontend -> backend -->
+  <line x1="332" y1="486" x2="386" y2="486" stroke="#a78bfa" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#mkNet)"/>
+  <text x="334" y="476" class="lbl-net">HTTP</text>
+
+  <!-- backend -> database -->
+  <line x1="702" y1="486" x2="756" y2="486" stroke="#a78bfa" stroke-width="2" stroke-dasharray="2 6" stroke-linecap="round" marker-end="url(#mkNet)"/>
+  <text x="706" y="476" class="lbl-net">SQL 5432</text>
+
+  <!-- Vault -> ESO -->
+  <line x1="416" y1="620" x2="366" y2="620" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mkSync)"/>
+  <text x="368" y="610" class="lbl-sync">JWT</text>
+
+  <!-- ESO -> Secret backend (vertical) -->
+  <line x1="470" y1="556" x2="470" y2="504" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mkSync)"/>
+  <text x="480" y="536" class="lbl-sync">écrit le Secret</text>
+
+  <!-- ESO -> Secret database (courbe) -->
+  <path d="M 700 556 C 700 528, 860 540, 878 504" fill="none" stroke="#38bdf8" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#mkSync)"/>
+  <text x="716" y="528" class="lbl-sync">écrit le Secret</text>
+
+  <!-- backend -> Vault : INTERDIT -->
+  <path d="M 470 512 C 440 540, 360 548, 316 558" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#mkDeny)"/>
+  <text x="58" y="534" class="lbl-deny">backend → Vault : bloqué (NetworkPolicy)</text>
+
+  <!-- backend SA -> API (RBAC autorisé) -->
+  <path d="M 640 266 L 640 238" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="10 4" marker-end="url(#mkRbac)"/>
+  <text x="652" y="258" class="lbl-rbac">get sur 2 secrets nommés</text>
+
+  <!-- intrus -> API (refusé) -->
+  <path d="M 1074 600 C 1150 600, 1186 560, 1186 240" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#mkDeny)"/>
+  <text x="1146" y="330" class="lbl-deny" transform="rotate(-90 1146 330)">RBAC : 403</text>
+
+  <!-- footer -->
+  <text x="40" y="942" class="subtitle">Démonstrations reproductibles : make demo-1-acces-refuse → make demo-7-utilisateur · validation : make validate · preuve réseau : make netpol-check</text>
+  <text x="40" y="962" class="subtitle">Docs : docs/architecture.md · docs/06-analyse-compromission.md · dépôt : aucun secret versionné (gitleaks en pre-commit)</text>
+</svg>

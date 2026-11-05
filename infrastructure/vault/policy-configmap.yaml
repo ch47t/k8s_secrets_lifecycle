@@ -1,0 +1,32 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Politique Vault embarquée dans une ConfigMap.
+#
+# Pourquoi une ConfigMap ? Le Job de bootstrap n'a pas accès au dépôt Git ;
+# on lui monte donc le fichier policies/eso-policy.hcl sous forme de ConfigMap.
+# En production, on utiliserait Terraform (provider Vault) ou le chart Helm
+# vault avec ses valeurs de policies — la ConfigMap est l'équivalent « lab »
+# lisible et versionné.
+#
+# Génération : make policy-configmap  (scripts/generate-policy-configmap.sh)
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-eso-policy
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault-bootstrap
+data:
+  eso-policy.hcl: |
+    # ESO : lecture seule des secrets du projet, aucune capacité d'écriture.
+    path "secret/data/backend/*"      { capabilities = ["read"] }
+    path "secret/data/database/*"     { capabilities = ["read"] }
+    path "secret/metadata/backend/*"  { capabilities = ["read"] }
+    path "secret/metadata/database/*" { capabilities = ["read"] }
+    path "database/creds/app"         { capabilities = ["read"] }
+
+    # Interdictions explicites : deny gagne toujours.
+    path "secret/data/prod-*" { capabilities = ["deny"] }
+    path "sys/*"              { capabilities = ["deny"] }
+    path "auth/token/*"       { capabilities = ["deny"] }
+    path "identity/*"         { capabilities = ["deny"] }

@@ -1,0 +1,53 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# RBAC d'un utilisateur HUMAIN (développeur) — démo 7
+#
+# Le RBAC ne protège pas que des workloads : les humains sont la première
+# source de fuite. Ici un développeur `alice` authentifiée par certificat
+# client, membre du groupe `developers`.
+#
+# Ce qu'elle obtient : lire la clé JWT (utile pour décoder un token en debug).
+# Ce qu'elle n'obtient PAS : db-credentials (le secret critique), la possibilité
+# de lister les secrets, ni quoi que ce soit hors du namespace backend.
+#
+# Le certificat client est généré par scripts/16-demo-7-utilisateur.sh à partir
+# de l'autorité de certification du cluster kind : aucune clé n'est committée.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer-jwt-reader
+  namespace: backend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+rules:
+  # Lecture de la clé JWT seule. `list` est volontairement absent :
+  # un `kubectl get secrets` reste refusé, seul `get secret jwt-key` passe.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["jwt-key"]
+    verbs: ["get"]
+  # Utile pour déboguer : voir les Pods du namespace
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: developer-jwt-reader
+  namespace: backend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+subjects:
+  # Groupe, pas utilisateur nommé : le départ d'alice ne casse pas la config,
+  # et l'ajout d'un développeur ne demande pas de modifier le RoleBinding.
+  - kind: Group
+    name: developers
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: developer-jwt-reader

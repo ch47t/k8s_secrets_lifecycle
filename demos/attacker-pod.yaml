@@ -1,0 +1,42 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Pod « attaquant » de la démo 1 — accès non autorisé
+#
+# Il tourne dans le namespace `security` avec le ServiceAccount sa-intrus,
+# qui n'a STRICTEMENT AUCUN droit (aucun Role, aucun RoleBinding).
+# Il embarque kubectl pour tenter de lire un secret comme le ferait un
+# attaquant qui a obtenu un exécution de code dans le cluster.
+#
+# Résultat attendu : Forbidden sur chacun des 4 essais.
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Pod
+metadata:
+  name: intrus
+  namespace: security
+  labels:
+    app.kubernetes.io/name: intrus
+    app.kubernetes.io/part-of: secrets-lifecycle
+spec:
+  serviceAccountName: sa-intrus
+  automountServiceAccountToken: true    # l'attaquant VEUT un token : il l'aura
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: kubectl
+      image: rancher/kubectl:v1.31.0
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 20m
+          memory: 32Mi
+        limits:
+          memory: 128Mi

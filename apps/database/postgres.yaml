@@ -1,0 +1,155 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# PostgreSQL — namespace database
+#
+# Le mot de passe ne vient PAS d'un manifest : il vient du Secret
+# `db-credentials`, lui-même créé par ESO depuis Vault. La chaîne complète est :
+#   Vault (source de vérité) -> ESO -> Secret K8s -> variable d'env du conteneur
+#
+# Nuance importante et souvent mal comprise :
+#   PostgreSQL ne peut pas lire un fichier de secret « à chaud » pour son
+#   authentification, donc il utilise ici une variable d'environnement
+#   (POSTGRES_PASSWORD). C'est UNIQUEMENT acceptable parce que la valeur est
+#   injectée par référence (secretKeyRef) et jamais écrite dans le manifest.
+#   Le vrai coût : une rotation du mot de passe nécessite ALTER USER + un
+#   redémarrage. C'est précisément la limite que les dynamic secrets de Vault
+#   font disparaître (voir docs/05-vault-eso.md).
+#
+# Pose de sécurité : profil restricted (pas de root, caps drop ALL, seccomp).
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: database
+  labels:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: secrets-lifecycle
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: secrets-lifecycle
+    spec:
+      serviceAccountName: sa-database
+      automountServiceAccountToken: false   # aucun appel à l'API nécessaire
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70          # utilisateur `postgres` de l'image alpine
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: pg
+              containerPort: 5432
+          env:
+            # Référence à un Secret — jamais de valeur en clair ici.
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: database
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: run
+              mountPath: /var/run/postgresql
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\""]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        # Lab : emptyDir (les données survivent à un redémarrage de conteneur,
+        # pas à une suppression de Pod). En production : PVC + StorageClass.
+        - name: data
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: initdb
+          configMap:
+            name: postgres-init
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: database
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  selector:
+    app.kubernetes.io/name: postgres
+  ports:
+    - name: pg
+      port: 5432
+      targetPort: 5432
+  clusterIP: None        # headless : nécessaire aux StatefulSets
+---
+# Script d'initialisation : crée une table de démonstration et un rôle
+# applicatif en lecture seule (principe du moindre privilège côté base aussi).
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: database
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+data:
+  01-init.sql: |
+    -- Table de démonstration utilisée par /api/db-check du backend
+    CREATE TABLE IF NOT EXISTS demo_events (
+      id          serial PRIMARY KEY,
+      emitted_at  timestamptz NOT NULL DEFAULT now(),
+      source      text NOT NULL,
+      note        text
+    );
+
+    INSERT INTO demo_events (source, note)
+    VALUES ('initdb', 'base initialisée — le mot de passe vient de Vault via ESO');
+
+    -- Le rôle superutilisateur est celui de l'image (app). En production on
+    -- créerait un rôle applicatif distinct, sans droits DDL :
+    --   CREATE ROLE app_rw LOGIN PASSWORD '...' ;
+    --   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO app_rw ;

@@ -1,0 +1,110 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# HashiCorp Vault — MODE DEV (lab uniquement)
+#
+# ⚠️  Le mode dev : stockage en mémoire, scellé/déscellé automatiquement,
+#     token root connu. Il est ici pour démontrer le cycle de vie, PAS pour
+#     la production. En production : stockage persistant (Raft), TLS,
+#     auto-unseal via KMS, et la clé d'unseal en Shamir Secret Sharing (3/5).
+#
+# Ce que Vault apporte ici (partie 5) :
+#   - source de vérité unique des secrets (plus de secret dans Git)
+#   - TTL par secret et révocation immédiate
+#   - dynamic secrets PostgreSQL (credentials qui expirent seuls)
+#   - audit device -> qui a lu quoi, quand
+# ──────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault
+spec:
+  selector:
+    app.kubernetes.io/name: vault
+  ports:
+    - name: http
+      port: 8200
+      targetPort: 8200
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  namespace: vault
+  labels:
+    app.kubernetes.io/name: vault
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vault
+    spec:
+      serviceAccountName: vault
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vault
+          image: hashicorp/vault:1.18
+          imagePullPolicy: IfNotPresent
+          args:
+            - server
+            - -dev                      # mode développement : mémoire + unsealed
+            - -dev-root-token-id=root   # token root trivial, acceptable en lab
+            - -dev-listen-address=0.0.0.0:8200
+          env:
+            - name: VAULT_ADDR
+              value: http://127.0.0.1:8200
+            - name: VAULT_FORMAT
+              value: json
+            - name: SKIP_SETCAP
+              value: "true"            # pas de mlock en mode dev
+          ports:
+            - name: http
+              containerPort: 8200
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            # Le device d'audit écrit dans un emptyDir : sans ce volume,
+            # `vault audit enable -path=file file ...` échoue (répertoire absent)
+            - name: audit
+              mountPath: /vault/audit
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&sealedcode=204&uninitcode=204
+              port: 8200
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true
+              port: 8200
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi

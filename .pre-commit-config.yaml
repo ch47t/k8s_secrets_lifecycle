@@ -1,0 +1,38 @@
+# ==============================================================================
+# Hooks pre-commit — le seul contrôle qui s'exécute AVANT que le secret
+# n'existe dans l'historique. Tout le reste est de la remédiation.
+#
+# Installation :
+#   pip install pre-commit && pre-commit install
+# ==============================================================================
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: "gitleaks — aucun secret dans le commit"
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: "yamllint — syntaxe YAML"
+        args: ["-d", "{extends: relaxed, rules: {line-length: {max: 120}}}"]
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: "shellcheck — scripts de démonstration"
+
+  # Contrôle local : refuse les fichiers qui ne devraient jamais être versionnés
+  - repo: local
+    hooks:
+      - id: no-generated-secrets
+        name: "refus des fichiers de secrets générés"
+        entry: >-
+          bash -c 'for f in "$@"; do case "$f" in
+          *encryption-config.yaml|*.key|*.pem|*kubeconfig*)
+          echo "Fichier interdit -> $f"; exit 1;; esac; done' --
+        language: system
+        types: [file]

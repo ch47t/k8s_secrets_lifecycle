@@ -1,0 +1,47 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# RBAC du frontend — le fichier le plus court du projet, et c'est voulu.
+#
+# Le frontend n'a AUCUN accès aux Secrets. Il n'y a donc pas de Role à créer :
+# l'absence de Role + l'absence de RoleBinding = refus par défaut.
+#
+# C'est le point de contrôle le plus souvent raté en pratique : on crée un
+# Role « pour que ça marche » alors que le composant n'a jamais eu besoin de
+# lire un secret. Ici, le frontend ne parle qu'à l'API backend via un Service.
+#
+# Ce fichier existe uniquement pour documenter l'absence volontaire de droits
+# (et pour vérifier en démo que `kubectl auth can-i` répond « no »).
+# ──────────────────────────────────────────────────────────────────────────────
+# Vérifications attendues (démo 1) :
+#   kubectl auth can-i get secrets -n frontend --as=system:serviceaccount:frontend:sa-frontend
+#   -> no
+#
+# On documente aussi explicitement ce que le frontend PEUT faire : lire ses
+# ConfigMaps (non sensibles) et résoudre les Services. Rien d'autre.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: frontend-minimal
+  namespace: frontend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["frontend-html", "frontend-nginx-conf"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: frontend-minimal
+  namespace: frontend
+  labels:
+    app.kubernetes.io/part-of: secrets-lifecycle
+subjects:
+  - kind: ServiceAccount
+    name: sa-frontend
+    namespace: frontend
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: frontend-minimal

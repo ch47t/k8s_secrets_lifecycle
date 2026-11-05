@@ -1,0 +1,50 @@
+# ==============================================================================
+# Configuration gitleaks — détection de secrets avant qu'ils n'entrent dans Git
+#
+# Utilisation :
+#   gitleaks protect --staged        (pre-commit : bloque le commit)
+#   gitleaks detect --source .       (scan complet du dépôt)
+#   gitleaks detect --log-opts=--all (scan de TOUT l'historique)
+# ==============================================================================
+title = "Mini-projet 6 — secrets Kubernetes"
+
+# Règles personnalisées pour les patterns de ce projet
+[[rules]]
+id = "kubernetes-secret-literal"
+description = "Valeur littérale dans un Secret Kubernetes (data: ou stringData:)"
+regex = '''(?i)(?:password|passwd|secret|token|api[_-]?key)\s*:\s*["']?[A-Za-z0-9+/=]{16,}'''
+tags = ["kubernetes", "secret"]
+
+[[rules]]
+id = "vault-token"
+description = "Token Vault (hvs. / s. préfixes)"
+regex = '''\b(hvs\.[A-Za-z0-9_-]{20,}|s\.[A-Za-z0-9]{24,})\b'''
+tags = ["vault", "token"]
+
+[[rules]]
+id = "postgres-dsn-with-password"
+description = "URL de connexion PostgreSQL contenant un mot de passe"
+regex = '''postgres(?:ql)?://[^:\s]+:[^@\s]+@[^\s"']+'''
+tags = ["database", "credential"]
+
+[[rules]]
+id = "k8s-serviceaccount-token"
+description = "JWT de ServiceAccount Kubernetes"
+regex = '''eyJhbGciOiJSUzI1NiIsImtpZCI6[A-Za-z0-9_-]{20,}'''
+tags = ["kubernetes", "token"]
+
+# Faux positifs légitimes de ce dépôt
+[allowlist]
+description = "Exemples pédagogiques et placeholders"
+paths = [
+  '''infrastructure/encryption/encryption-config\.example\.yaml''',
+  '''scripts/15-demo-6-gitleaks\.sh''',   # contient de faux secrets à dessein
+  '''docs/''',                            # documentation : exemples avec placeholders
+]
+regexes = [
+  '''__[A-Z_]+__''',            # placeholders __AESCBC_KEY__
+  '''\$\{[A-Z_]+\}''',          # variables d'environnement
+  '''\{\{ ?\.[a-z]+ ?\}\}''',   # templates ESO
+  '''<base64>''',
+  '''AKIAIOSFODNN7EXAMPLE''',   # clé AWS canonique de démonstration
+]
